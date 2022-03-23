@@ -16,9 +16,9 @@ namespace AsynchronousTraining
 
         private int ResponseTime;
 
-        private int MaxConcurrentRequest;
+        public static int MaxConcurrentRequest { get; set; }
 
-        public int CurrentConcurrentRequest { get; private set; }
+        public static int CurrentConcurrentRequest { get; private set; }
 
         public CustomReportMockCaller(string baseUri, HttpClient client, int responseTime)
         {
@@ -29,20 +29,25 @@ namespace AsynchronousTraining
 
         public async Task<CustomReportResponse> PostAsync(CustomReportRequest request)
         {
-            var json = JsonConvert.SerializeObject(request);
-            var stringContent = new StringContent(json, Encoding.UTF8, "application/json");
+            while(CurrentConcurrentRequest <= MaxConcurrentRequest)
+            {
+                CurrentConcurrentRequest++;
 
-            await Task.Delay(ResponseTime);
+                var json = JsonConvert.SerializeObject(request);
+                var stringContent = new StringContent(json, Encoding.UTF8, "application/json");
+
+                await MockRequest();
+            }
 
             var response = new CustomReportResponse();
             return response;
         }
 
-        private CustomReportResponse MockRequest()
+        private Task<CustomReportResponse> MockRequest()
         {
             Thread.Sleep(ResponseTime);
             var response = new CustomReportResponse();
-            return response;
+            return Task.FromResult(response);
         }
 
     }

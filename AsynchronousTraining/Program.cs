@@ -48,10 +48,16 @@ namespace AsynchronousTraining
             Console.WriteLine(response.Result);
 
 
-            var customReportMockCaller = new CustomReportMockCaller(customReportbaseUri, Client, 1000);
-            var mockResponse = await customReportMockCaller.PostAsync(request);
+            
 
+            CustomReportMockCaller.MaxConcurrentRequest = 50;
+            Console.WriteLine(CustomReportMockCaller.CurrentConcurrentRequest);
 
+            for (int i=0; i<100; i++)
+            {
+                var customReportMockCaller = new CustomReportMockCaller(customReportbaseUri, Client, 1000);
+                await customReportMockCaller.PostAsync(request);
+            }
         }
     }
 }
