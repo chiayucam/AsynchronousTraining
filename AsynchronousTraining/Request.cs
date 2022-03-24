@@ -4,7 +4,7 @@ using System.Text;
 
 namespace AsynchronousTraining
 {
-    public class CustomReportRequest
+    public class Request
     {
         public int Dtno { get; set; }
 

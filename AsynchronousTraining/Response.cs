@@ -4,7 +4,7 @@ using System.Text;
 
 namespace AsynchronousTraining
 {
-    public class CustomReportResponse
+    public class Response
     {
         public bool IsCompleted { get; set; }
 

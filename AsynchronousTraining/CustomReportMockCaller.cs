@@ -8,46 +8,78 @@ using Newtonsoft.Json;
 
 namespace AsynchronousTraining
 {
-    public class CustomReportMockCaller
+    public class CustomReportMockCaller : ICustomReportCaller
     {
-        private HttpClient Client;
-
-        private string BaseUri;
+        private static object locker = new object();
 
         private int ResponseTime;
 
-        public static int MaxConcurrentRequest { get; set; }
+        private int ConcurrentRequestLimit;
 
-        public static int CurrentConcurrentRequest { get; private set; }
+        private int ConcurrentRequest;
 
-        public CustomReportMockCaller(string baseUri, HttpClient client, int responseTime)
+        public CustomReportMockCaller(int responseTime, int maxConcurrentRequest)
         {
-            Client = client;
-            BaseUri = baseUri;
             ResponseTime = responseTime;
+            ConcurrentRequestLimit = maxConcurrentRequest;
         }
 
-        public async Task<CustomReportResponse> PostAsync(CustomReportRequest request)
+        /// <summary>
+        /// Mock呼叫API
+        /// </summary>
+        /// <param name="request">Request類別的request body</param>
+        /// <returns>Response類別的response body</returns>
+        public async Task<Response> PostAsync(Request request)
         {
-            while(CurrentConcurrentRequest <= MaxConcurrentRequest)
+            if (ConcurrentRequest < ConcurrentRequestLimit)
             {
-                CurrentConcurrentRequest++;
+                lock (locker)
+                {
+                    ConcurrentRequest++;
+                    LogRequest();
+                }
 
-                var json = JsonConvert.SerializeObject(request);
-                var stringContent = new StringContent(json, Encoding.UTF8, "application/json");
+                await Task.Delay(ResponseTime);
 
-                await MockRequest();
+                lock (locker)
+                {
+                    ConcurrentRequest--;
+                    LogReponse();
+                }
+            }
+            else
+            {
+                throw new RequestLimitExceededException("MaxConcurrentRequest: " + ConcurrentRequestLimit);
             }
 
-            var response = new CustomReportResponse();
+            var response = new Response();
             return response;
         }
 
-        private Task<CustomReportResponse> MockRequest()
+        /// <summary>
+        /// log request
+        /// </summary>
+        private void LogRequest()
         {
-            Thread.Sleep(ResponseTime);
-            var response = new CustomReportResponse();
-            return Task.FromResult(response);
+            Console.WriteLine("Request:  " + GetTimestamp(DateTime.Now) + " CurrentConcurrentRequests: " + ConcurrentRequest);
+        }
+
+        /// <summary>
+        /// log response
+        /// </summary>
+        private void LogReponse()
+        {
+            Console.WriteLine("Response: " + GetTimestamp(DateTime.Now) + " CurrentConcurrentRequests: " + ConcurrentRequest);
+        }
+
+        /// <summary>
+        /// 按格式轉換Datetime成string
+        /// </summary>
+        /// <param name="value"></param>
+        /// <returns></returns>
+        private string GetTimestamp(DateTime value)
+        {
+            return value.ToString("HH:mm:ss:ffff");
         }
 
     }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -18,7 +19,7 @@ namespace AsynchronousTraining
         /// </summary>
         /// <param name="args">參數</param>
         /// <returns>Task</returns>
-        private static async Task Main(string[] args)
+        private static async Task Main()
         {
             // get configurations from appsettings.json
             var builder = new ConfigurationBuilder().AddJsonFile("appsettings.json");
@@ -28,7 +29,7 @@ namespace AsynchronousTraining
             string customReportbaseUri = config.GetSection("CustomReport")["baseUri"];
 
             // testing parameters
-            CustomReportRequest request = new CustomReportRequest
+            Request request = new Request
             {
                 Dtno = 5493,
                 Ftno = 0,
@@ -40,24 +41,46 @@ namespace AsynchronousTraining
             var customReportCaller = new CustomReportCaller(customReportbaseUri, Client);
             var response = await customReportCaller.PostAsync(request);
 
-            // TODO: check response correct, remove later
+            // TODO: check if response is correct, remove later
+            //PrintResponse(response);
+
+
+            // mock caller
+            int responseTime = 1000;
+            int maxConcurrentRequest = 5;
+
+            var customReportMockCaller = new CustomReportMockCaller(responseTime, maxConcurrentRequest);
+
+            // make multiple calls
+            var tasks = new List<Task>();
+            try
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    tasks.Add(customReportMockCaller.PostAsync(request));
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            catch (RequestLimitExceededException)
+            {
+                Console.WriteLine("Request Limit Exceeded");
+            }
+
+            Console.ReadLine();
+        }
+
+        /// <summary>
+        /// 印出Response
+        /// </summary>
+        /// <param name="response">response</param>
+        private static void PrintResponse(Response response)
+        {
             Console.WriteLine(response.IsCompleted);
             Console.WriteLine(response.IsFaulted);
             Console.WriteLine(response.Signature);
             Console.WriteLine(response.Expception);
             Console.WriteLine(response.Result);
-
-
-            
-
-            CustomReportMockCaller.MaxConcurrentRequest = 50;
-            Console.WriteLine(CustomReportMockCaller.CurrentConcurrentRequest);
-
-            for (int i=0; i<100; i++)
-            {
-                var customReportMockCaller = new CustomReportMockCaller(customReportbaseUri, Client, 1000);
-                await customReportMockCaller.PostAsync(request);
-            }
         }
     }
 }
