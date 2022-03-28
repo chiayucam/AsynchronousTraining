@@ -8,20 +8,21 @@ using Newtonsoft.Json;
 
 namespace AsynchronousTraining
 {
-    public class CustomReportMockCaller : ICustomReportCaller
+    /// <summary>
+    /// 自訂報表假物件
+    /// </summary>
+    public class CustomReportMockCaller : IHttpCallable
     {
-        private static object locker = new object();
+        private readonly int ResponseTime;
 
-        private int ResponseTime;
+        private readonly int ConcurrentRequestLimit;
 
-        private int ConcurrentRequestLimit;
+        private int ConcurrentRequestCount;
 
-        private int ConcurrentRequest;
-
-        public CustomReportMockCaller(int responseTime, int maxConcurrentRequest)
+        public CustomReportMockCaller(int responseTime, int concurrentRequestLimit)
         {
             ResponseTime = responseTime;
-            ConcurrentRequestLimit = maxConcurrentRequest;
+            ConcurrentRequestLimit = concurrentRequestLimit;
         }
 
         /// <summary>
@@ -31,29 +32,41 @@ namespace AsynchronousTraining
         /// <returns>Response類別的response body</returns>
         public async Task<Response> PostAsync(Request request)
         {
-            if (ConcurrentRequest < ConcurrentRequestLimit)
+            // atomic operation increment ConcurrentRequestCount, then check if count is under limit
+            //if (InterlockedIncrementIfLessThan(ref ConcurrentRequestCount, ConcurrentRequestLimit))
+            if (Interlocked.Increment(ref ConcurrentRequestCount) <= ConcurrentRequestLimit)
             {
-                lock (locker)
-                {
-                    ConcurrentRequest++;
-                    LogRequest();
-                }
+                //LogRequest();
 
                 await Task.Delay(ResponseTime);
 
-                lock (locker)
-                {
-                    ConcurrentRequest--;
-                    LogReponse();
-                }
+                Interlocked.Decrement(ref ConcurrentRequestCount);
+                //LogReponse();
             }
             else
             {
-                throw new RequestLimitExceededException("MaxConcurrentRequest: " + ConcurrentRequestLimit);
+                Interlocked.Decrement(ref ConcurrentRequestCount);
+                //LogRequestLimitExceeded();
+                throw new RequestLimitExceededException("Maximun concurrent request limit exceeded.");
             }
 
             var response = new Response();
             return response;
+        }
+
+        // TODO: temporary keep, currently not in use
+        private bool InterlockedIncrementIfLessThan(ref int location, int comparand)
+        {
+            int initialValue;
+            int newValue;
+            do
+            {
+                initialValue = location;
+                newValue = initialValue + 1;
+                if (initialValue >= comparand) return false;
+            }
+            while (Interlocked.CompareExchange(ref location, newValue, initialValue) != initialValue);
+            return true;
         }
 
         /// <summary>
@@ -61,7 +74,7 @@ namespace AsynchronousTraining
         /// </summary>
         private void LogRequest()
         {
-            Console.WriteLine("Request:  " + GetTimestamp(DateTime.Now) + " CurrentConcurrentRequests: " + ConcurrentRequest);
+            Console.WriteLine("Request:  " + GetTimestamp(DateTime.Now) + " CurrentConcurrentRequests: " + ConcurrentRequestCount);
         }
 
         /// <summary>
@@ -69,7 +82,15 @@ namespace AsynchronousTraining
         /// </summary>
         private void LogReponse()
         {
-            Console.WriteLine("Response: " + GetTimestamp(DateTime.Now) + " CurrentConcurrentRequests: " + ConcurrentRequest);
+            Console.WriteLine("Response: " + GetTimestamp(DateTime.Now) + " CurrentConcurrentRequests: " + ConcurrentRequestCount);
+        }
+
+        /// <summary>
+        /// log request limit exceeded
+        /// </summary>
+        private void LogRequestLimitExceeded()
+        {
+            Console.WriteLine("Request Limit Exceeded");
         }
 
         /// <summary>

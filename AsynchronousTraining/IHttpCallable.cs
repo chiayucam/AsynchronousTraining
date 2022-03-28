@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace AsynchronousTraining
 {
-    public interface ICustomReportCaller
+    public interface IHttpCallable
     {
         Task<Response> PostAsync(Request request);
     }

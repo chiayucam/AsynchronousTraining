@@ -11,7 +11,7 @@ namespace AsynchronousTraining
     /// <summary>
     /// 自訂報表呼叫
     /// </summary>
-    public class CustomReportCaller : ICustomReportCaller
+    public class CustomReportCaller : IHttpCallable
     {
         /// <summary>
         /// HttpClient

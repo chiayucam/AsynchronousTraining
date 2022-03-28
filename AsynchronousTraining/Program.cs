@@ -28,7 +28,7 @@ namespace AsynchronousTraining
             // get baseUri for api
             string customReportbaseUri = config.GetSection("CustomReport")["baseUri"];
 
-            // testing parameters
+            // testing request parameters
             Request request = new Request
             {
                 Dtno = 5493,
@@ -38,18 +38,39 @@ namespace AsynchronousTraining
                 AssignSpid = ""
             };
 
+            //await TestOne(customReportbaseUri, request);
+
+            //await TestTwo(request);
+
+            //await TestThree(customReportbaseUri, request);
+
+            await TestFour(customReportbaseUri, request);
+
+            Console.ReadLine();
+        }
+
+        private static async Task TestOne(string customReportbaseUri, Request request)
+        {
+            
+
             var customReportCaller = new CustomReportCaller(customReportbaseUri, Client);
             var response = await customReportCaller.PostAsync(request);
 
-            // TODO: check if response is correct, remove later
-            //PrintResponse(response);
+            // check if response is correct
+            Console.WriteLine(response.IsCompleted);
+            Console.WriteLine(response.IsFaulted);
+            Console.WriteLine(response.Signature);
+            Console.WriteLine(response.Expception);
+            Console.WriteLine(response.Result);
+        }
 
-
+        private static async Task TestTwo(Request request)
+        {
             // mock caller
             int responseTime = 1000;
-            int maxConcurrentRequest = 5;
+            int concurrentRequestLimit = 5;
 
-            var customReportMockCaller = new CustomReportMockCaller(responseTime, maxConcurrentRequest);
+            var customReportMockCaller = new CustomReportMockCaller(responseTime, concurrentRequestLimit);
 
             // make multiple calls
             var tasks = new List<Task>();
@@ -64,23 +85,66 @@ namespace AsynchronousTraining
             }
             catch (RequestLimitExceededException)
             {
-                Console.WriteLine("Request Limit Exceeded");
+            }
+        }
+
+        private static async Task TestThree(string customReportbaseUri, Request request)
+        {
+            // mock caller arguments
+            int responseTime = 1000;
+            int concurrentRequestLimit = 5;
+
+            CallRandomAllocator callAllocator = new CallRandomAllocator();
+
+            // add callers
+            for (int i=0; i<3; i++)
+            {
+                callAllocator.AddCaller(new CustomReportCaller(customReportbaseUri, Client));
+            }
+
+            var tasks = new List<Task>();
+            try
+            {
+                for (int i = 0; i < 100; i++)
+                {
+                    tasks.Add(callAllocator.PostAsync(request));
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            catch (RequestLimitExceededException)
+            {
             }
 
             Console.ReadLine();
+
+            //replace last caller with mock caller
+            callAllocator.ReplaceCaller(new CustomReportMockCaller(responseTime, concurrentRequestLimit), callAllocator.Count - 1);
+
+            tasks.Clear();
+            try
+            {
+                for (int i = 0; i < 100; i++)
+                {
+                    tasks.Add(callAllocator.PostAsync(request));
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            catch (RequestLimitExceededException)
+            {
+            }
         }
 
-        /// <summary>
-        /// 印出Response
-        /// </summary>
-        /// <param name="response">response</param>
-        private static void PrintResponse(Response response)
+        private static async Task TestFour(string customReportbaseUri, Request request)
         {
-            Console.WriteLine(response.IsCompleted);
-            Console.WriteLine(response.IsFaulted);
-            Console.WriteLine(response.Signature);
-            Console.WriteLine(response.Expception);
-            Console.WriteLine(response.Result);
+            // mock caller arguments
+            int responseTime = 1000;
+            int concurrentRequestLimit = 5;
+
+            CallController callController = new CallController(concurrentRequestLimit);
+
+
         }
     }
 }
