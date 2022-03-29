@@ -17,34 +17,26 @@ namespace AsynchronousTraining
         /// <summary>
         /// 呼叫器列表
         /// </summary>
-        private readonly List<(IHttpCallable caller, int concurrentRequestLimit)> CallerList = new List<(IHttpCallable, int)>();
+        //private readonly List<(IHttpCallable caller, int concurrentRequestLimit)> CallerList = new List<(IHttpCallable, int)>();
 
-        private readonly BlockingCollection<IHttpCallable> IdleCallers = new BlockingCollection<IHttpCallable>();
+        private readonly BlockingCollection<(int, IHttpCallable)> IdleCallers;
 
-        private readonly int ConcurrentRequestLimit;
+        private int CallerNum = 0;
 
 
-        public CallController(int concurrentRequestLimit)
+        public CallController()
         {
-            ConcurrentRequestLimit = concurrentRequestLimit;
-        }
-
-        /// <summary>
-        /// 呼叫器數量
-        /// </summary>
-        public int Count
-        {
-            get => CallerList.Count;
+            IdleCallers = new BlockingCollection<(int id, IHttpCallable caller)>();
         }
 
         /// <summary>
         /// 加呼叫器
         /// </summary>
         /// <param name="caller">呼叫器</param>
-        public int AddCaller(IHttpCallable caller)
+        public void AddCaller(IHttpCallable caller)
         {
-            IdleCallers.Add(caller);
-            return Count - 1;
+            IdleCallers.Add((CallerNum, caller));
+            CallerNum++;
         }
 
         /// <summary>
@@ -54,27 +46,59 @@ namespace AsynchronousTraining
         /// <returns>回覆</returns>
         public async Task<Response> PostAsync(Request request)
         {
-            if (Count == 0)
-            {
-                throw new InvalidOperationException("CallerList empty");
-            }
-
-            if (IdleCallers.Count == CallerList.Count)
+            if (IdleCallers.Count == CallerNum)
             {
                 return await RandomAssignCall(request);
             }
 
-            return await RandomAssignCall(request);
+
+            var (id, caller) = IdleCallers.Take();
+
+            Response response;
+            Console.WriteLine("Requested with caller: " + id);
+
+            if 
+            try
+            {
+                response = await caller.PostAsync(request);
+            }
+            catch (RequestLimitExceededException)
+            {
+                
+            }
+            Console.WriteLine("Got response from caller: " + id);
+
+            IdleCallers.Add((id, caller));
+
+            return response;
         }
 
         private async Task<Response> RandomAssignCall(Request request)
         {
-            int random = Random.Next(0, Count);
-            Console.WriteLine("Using Caller " + random);
+            int random = Random.Next(0, IdleCallers.Count);
 
-            IHttpCallable caller = CallerList[random].caller;
-            
+            int id;
+            IHttpCallable caller;
+
+            for (int i=0; i<random; i++)
+            {
+                IdleCallers.Add(IdleCallers.Take());
+            }
+
+            (id, caller) = IdleCallers.Take();
+
+            //while(true)
+            //{
+            //    (id, caller) = IdleCallers.Take();
+            //    if (id == random) break;
+            //    IdleCallers.Add((id, caller));
+            //}
+
+            Console.WriteLine("[Random] Requested with caller: " + id);
             Response response = await caller.PostAsync(request);
+            Console.WriteLine("[Random] Got response from caller: " + id);
+            IdleCallers.Add((id, caller));
+
             return response;
         }
     }

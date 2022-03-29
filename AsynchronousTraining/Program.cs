@@ -38,18 +38,18 @@ namespace AsynchronousTraining
                 AssignSpid = ""
             };
 
-            //await TestOne(customReportbaseUri, request);
+            //await TaskOne(customReportbaseUri, request);
 
-            //await TestTwo(request);
+            //await TaskTwo(request);
 
-            //await TestThree(customReportbaseUri, request);
+            //await TaskThree(customReportbaseUri, request);
 
-            await TestFour(customReportbaseUri, request);
+            await TaskFour(customReportbaseUri, request);
 
             Console.ReadLine();
         }
 
-        private static async Task TestOne(string customReportbaseUri, Request request)
+        private static async Task TaskOne(string customReportbaseUri, Request request)
         {
             
 
@@ -64,7 +64,7 @@ namespace AsynchronousTraining
             Console.WriteLine(response.Result);
         }
 
-        private static async Task TestTwo(Request request)
+        private static async Task TaskTwo(Request request)
         {
             // mock caller
             int responseTime = 1000;
@@ -88,18 +88,18 @@ namespace AsynchronousTraining
             }
         }
 
-        private static async Task TestThree(string customReportbaseUri, Request request)
+        private static async Task TaskThree(string customReportbaseUri, Request request)
         {
             // mock caller arguments
             int responseTime = 1000;
             int concurrentRequestLimit = 5;
 
-            CallRandomAllocator callAllocator = new CallRandomAllocator();
+            CallRandomAllocator callRandomAllocator = new CallRandomAllocator();
 
             // add callers
             for (int i=0; i<3; i++)
             {
-                callAllocator.AddCaller(new CustomReportCaller(customReportbaseUri, Client));
+                callRandomAllocator.AddCaller(new CustomReportCaller(customReportbaseUri, Client));
             }
 
             var tasks = new List<Task>();
@@ -107,7 +107,7 @@ namespace AsynchronousTraining
             {
                 for (int i = 0; i < 100; i++)
                 {
-                    tasks.Add(callAllocator.PostAsync(request));
+                    tasks.Add(callRandomAllocator.PostAsync(request));
                 }
 
                 await Task.WhenAll(tasks);
@@ -119,14 +119,14 @@ namespace AsynchronousTraining
             Console.ReadLine();
 
             //replace last caller with mock caller
-            callAllocator.ReplaceCaller(new CustomReportMockCaller(responseTime, concurrentRequestLimit), callAllocator.Count - 1);
+            callRandomAllocator.ReplaceCaller(new CustomReportMockCaller(responseTime, concurrentRequestLimit), callRandomAllocator.Count - 1);
 
             tasks.Clear();
             try
             {
                 for (int i = 0; i < 100; i++)
                 {
-                    tasks.Add(callAllocator.PostAsync(request));
+                    tasks.Add(callRandomAllocator.PostAsync(request));
                 }
 
                 await Task.WhenAll(tasks);
@@ -136,15 +136,31 @@ namespace AsynchronousTraining
             }
         }
 
-        private static async Task TestFour(string customReportbaseUri, Request request)
+        private static async Task TaskFour(string customReportbaseUri, Request request)
         {
-            // mock caller arguments
-            int responseTime = 1000;
-            int concurrentRequestLimit = 5;
+            CallController callController = new CallController();
 
-            CallController callController = new CallController(concurrentRequestLimit);
+            // add callers
+            for (int i = 0; i < 5; i++)
+            {
+                int concurrentRequestLimit = i + 1;
+                callController.AddCaller(new ConcurrentRequestLimitDecorator(new CustomReportCaller(customReportbaseUri, Client), concurrentRequestLimit));
+                //callController.AddCaller(new CustomReportMockCaller((i+1)*1000, 10));
+            }
 
+            var tasks = new List<Task>();
+            try
+            {
+                for (int i = 0; i < 100; i++)
+                {
+                    tasks.Add(callController.PostAsync(request));
+                }
 
+                await Task.WhenAll(tasks);
+            }
+            catch (RequestLimitExceededException)
+            {
+            }
         }
     }
 }
