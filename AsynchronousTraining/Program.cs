@@ -141,17 +141,17 @@ namespace AsynchronousTraining
             CallController callController = new CallController();
 
             // add callers
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 3; i++)
             {
-                int concurrentRequestLimit = i + 1;
-                callController.AddCaller(new ConcurrentRequestLimitDecorator(new CustomReportCaller(customReportbaseUri, Client), concurrentRequestLimit));
-                //callController.AddCaller(new CustomReportMockCaller((i+1)*1000, 10));
+                int concurrentRequestLimit = i + 2;
+                //callController.AddCaller(new ConcurrentRequestLimitDecorator(new CustomReportCaller(customReportbaseUri, Client), concurrentRequestLimit));
+                callController.AddCaller(new CustomReportMockCaller((i + 1) * 1000, 10), concurrentRequestLimit);
             }
 
             var tasks = new List<Task>();
             try
             {
-                for (int i = 0; i < 100; i++)
+                for (int i = 0; i < 10; i++)
                 {
                     tasks.Add(callController.PostAsync(request));
                 }

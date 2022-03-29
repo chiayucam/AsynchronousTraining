@@ -19,23 +19,28 @@ namespace AsynchronousTraining
         /// </summary>
         //private readonly List<(IHttpCallable caller, int concurrentRequestLimit)> CallerList = new List<(IHttpCallable, int)>();
 
-        private readonly BlockingCollection<(int, IHttpCallable)> IdleCallers;
+        private readonly BlockingCollection<(int, IHttpCallable, int)> IdleCallers;
+
+        private readonly ConcurrentDictionary<int, int> ConcurrentRequestCountTracker;
 
         private int CallerNum = 0;
 
 
         public CallController()
         {
-            IdleCallers = new BlockingCollection<(int id, IHttpCallable caller)>();
+            IdleCallers = new BlockingCollection<(int id, IHttpCallable caller, int concurrentRequestLimit)>();
+            ConcurrentRequestCountTracker = new ConcurrentDictionary<int, int>();
         }
 
         /// <summary>
         /// 加呼叫器
         /// </summary>
         /// <param name="caller">呼叫器</param>
-        public void AddCaller(IHttpCallable caller)
+        public void AddCaller(IHttpCallable caller, int concurrentRequestLimit)
         {
-            IdleCallers.Add((CallerNum, caller));
+            int concurrentRequestCount = 0;
+            IdleCallers.Add((CallerNum, caller, concurrentRequestLimit));
+            ConcurrentRequestCountTracker[CallerNum] = concurrentRequestCount;
             CallerNum++;
         }
 
@@ -46,58 +51,36 @@ namespace AsynchronousTraining
         /// <returns>回覆</returns>
         public async Task<Response> PostAsync(Request request)
         {
-            if (IdleCallers.Count == CallerNum)
-            {
-                return await RandomAssignCall(request);
-            }
-
-
-            var (id, caller) = IdleCallers.Take();
-
             Response response;
-            Console.WriteLine("Requested with caller: " + id);
 
-            if 
-            try
+            var (id, caller, concurrentRequestLimit) = IdleCallers.Take();
+            if (ConcurrentRequestCountTracker.AddOrUpdate(id, 0, (key, oldValue) => oldValue + 1) < concurrentRequestLimit)
             {
+                Console.WriteLine("Requested with caller: " + id);
+
+                IdleCallers.Add((id, caller, concurrentRequestLimit));
                 response = await caller.PostAsync(request);
+                ConcurrentRequestCountTracker.AddOrUpdate(id, 0, (key, oldValue) => oldValue - 1);
+
+                Console.WriteLine("Got response from caller: " + id);
             }
-            catch (RequestLimitExceededException)
+            else if (ConcurrentRequestCountTracker[id] == concurrentRequestLimit)
             {
-                
+                Console.WriteLine("[Max Limit] Requested with caller: " + id);
+
+                // Add back to IdleCallers queue after getting response, stops this caller from getting used until await finishes
+                response = await caller.PostAsync(request);
+                IdleCallers.Add((id, caller, concurrentRequestLimit));
+                ConcurrentRequestCountTracker.AddOrUpdate(id, 0, (key, oldValue) => oldValue - 1);
+
+                Console.WriteLine("[Max Limit] Got response from caller: " + id);
             }
-            Console.WriteLine("Got response from caller: " + id);
-
-            IdleCallers.Add((id, caller));
-
-            return response;
-        }
-
-        private async Task<Response> RandomAssignCall(Request request)
-        {
-            int random = Random.Next(0, IdleCallers.Count);
-
-            int id;
-            IHttpCallable caller;
-
-            for (int i=0; i<random; i++)
+            else
             {
-                IdleCallers.Add(IdleCallers.Take());
+                // TODO: not sure what to return
+                Console.WriteLine("response null");
+                response = null;
             }
-
-            (id, caller) = IdleCallers.Take();
-
-            //while(true)
-            //{
-            //    (id, caller) = IdleCallers.Take();
-            //    if (id == random) break;
-            //    IdleCallers.Add((id, caller));
-            //}
-
-            Console.WriteLine("[Random] Requested with caller: " + id);
-            Response response = await caller.PostAsync(request);
-            Console.WriteLine("[Random] Got response from caller: " + id);
-            IdleCallers.Add((id, caller));
 
             return response;
         }

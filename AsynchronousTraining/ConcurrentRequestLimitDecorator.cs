@@ -14,6 +14,11 @@ namespace AsynchronousTraining
 
         private int ConcurrentRequestCount;
 
+        public int Count
+        {
+            get => ConcurrentRequestCount;
+        }
+
         public ConcurrentRequestLimitDecorator(IHttpCallable caller, int concurrentRequestLimit)
         {
             Caller = caller;
@@ -33,6 +38,16 @@ namespace AsynchronousTraining
                 Interlocked.Decrement(ref ConcurrentRequestCount);
                 throw new RequestLimitExceededException("Maximun concurrent request limit exceeded.");
             }
+        }
+
+        public int Increment()
+        {
+            return Interlocked.Increment(ref ConcurrentRequestCount);
+        }
+
+        public int Decrement()
+        {
+            return Interlocked.Decrement(ref ConcurrentRequestCount);
         }
     }
 }
