@@ -54,7 +54,6 @@ namespace AsynchronousTraining
             return response;
         }
 
-        // TODO: keep temporarily
         private bool InterlockedIncrementIfLessThan(ref int location, int comparand)
         {
             int initialValue;
