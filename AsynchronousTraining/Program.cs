@@ -12,6 +12,9 @@ namespace AsynchronousTraining
     /// </summary>
     public class Program
     {
+        /// <summary>
+        /// HttpClient
+        /// </summary>
         private static HttpClient Client = new HttpClient();
 
         /// <summary>
@@ -44,7 +47,9 @@ namespace AsynchronousTraining
 
             //await TaskThree(customReportbaseUri, request);
 
-            await TaskFour(customReportbaseUri, request);
+            //await TaskFour(customReportbaseUri, request);
+
+            await TaskFive(customReportbaseUri, request);
 
             Console.ReadLine();
         }
@@ -76,7 +81,7 @@ namespace AsynchronousTraining
             var tasks = new List<Task>();
             try
             {
-                for (int i = 0; i < 10; i++)
+                for (int i=0; i<10; i++)
                 {
                     tasks.Add(customReportMockCaller.PostAsync(request));
                 }
@@ -105,7 +110,7 @@ namespace AsynchronousTraining
             var tasks = new List<Task>();
             try
             {
-                for (int i = 0; i < 100; i++)
+                for (int i=0; i<100; i++)
                 {
                     tasks.Add(callRandomAllocator.PostAsync(request));
                 }
@@ -124,7 +129,7 @@ namespace AsynchronousTraining
             tasks.Clear();
             try
             {
-                for (int i = 0; i < 100; i++)
+                for (int i=0; i<100; i++)
                 {
                     tasks.Add(callRandomAllocator.PostAsync(request));
                 }
@@ -141,9 +146,9 @@ namespace AsynchronousTraining
             CallController callController = new CallController();
 
             // add callers
-            for (int i = 0; i < 3; i++)
+            for (int i=0; i<3; i++)
             {
-                int concurrentRequestLimit = i + 2;
+                int concurrentRequestLimit = 3;
                 //callController.AddCaller(new ConcurrentRequestLimitDecorator(new CustomReportCaller(customReportbaseUri, Client), concurrentRequestLimit));
                 callController.AddCaller(new CustomReportMockCaller((i + 1) * 1000, 10), concurrentRequestLimit);
             }
@@ -151,7 +156,7 @@ namespace AsynchronousTraining
             var tasks = new List<Task>();
             try
             {
-                for (int i = 0; i < 10; i++)
+                for (int i=0; i<30; i++)
                 {
                     tasks.Add(callController.PostAsync(request));
                 }
@@ -161,6 +166,22 @@ namespace AsynchronousTraining
             catch (RequestLimitExceededException)
             {
             }
+        }
+
+        private static async Task TaskFive(string customReportbaseUri, Request request)
+        {
+            CallProducer callProducer = new CallProducer();
+
+            await Task.Run(() =>
+            {
+                for (int i = 0; i < 30; i++)
+                {
+                    callProducer.AddRequest(request);
+                }
+            });
+
+
+            
         }
     }
 }

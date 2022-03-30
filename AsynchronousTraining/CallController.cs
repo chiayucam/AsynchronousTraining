@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.Text;
+﻿using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,38 +10,28 @@ namespace AsynchronousTraining
     public class CallController : IHttpCallable
     {
         /// <summary>
-        /// 閒置呼叫器佇列
+        /// 閒置呼叫器呼叫額度佇列
         /// </summary>
-        private readonly BlockingCollection<(int id, IHttpCallable caller, int concurrentRequestLimit)> IdleCallers;
-
-        private readonly BlockingCollection<Request> IdleRequests;
+        private readonly ConcurrentQueue<IHttpCallable> IdleRequestQuotas = new ConcurrentQueue<IHttpCallable>();
 
         /// <summary>
-        /// 呼叫次數追蹤器
+        /// 號誌
         /// </summary>
-        private readonly ConcurrentDictionary<int, int> ConcurrentRequestCountTracker;
-
-        /// <summary>
-        /// 建構子
-        /// </summary>
-        public CallController(int requestLimit)
-        {
-            IdleCallers = new BlockingCollection<(int id, IHttpCallable caller, int concurrentRequestLimit)>();
-            ConcurrentRequestCountTracker = new ConcurrentDictionary<int, int>();
-            IdleRequests = new BlockingCollection<Request>(requestLimit);
-        }
+        private readonly SemaphoreSlim Semaphore = new SemaphoreSlim(0);
 
         /// <summary>
         /// 加呼叫器
         /// </summary>
         /// <param name="caller">呼叫器</param>
-        /// <param name="concurrentRequestLimit">呼叫器的呼叫次數限制</param>
-        public void AddCaller(IHttpCallable caller, int concurrentRequestLimit)
+        /// <param name="requestLimit">呼叫器的呼叫次數限制</param>
+        public void AddCaller(IHttpCallable caller, int requestLimit)
         {
-            int callerId = IdleCallers.Count;
-            int concurrentRequestCount = 0;
-            IdleCallers.Add((callerId, caller, concurrentRequestLimit));
-            ConcurrentRequestCountTracker[callerId] = concurrentRequestCount;
+            for (int i=0; i<requestLimit; i++)
+            {
+                IdleRequestQuotas.Enqueue(caller);
+            }
+
+            Semaphore.Release(requestLimit);
         }
 
         /// <summary>
@@ -54,46 +41,15 @@ namespace AsynchronousTraining
         /// <returns>回覆</returns>
         public async Task<Response> PostAsync(Request request)
         {
-            //Response response;
+            await Semaphore.WaitAsync();
 
-            //// 取出caller
-            //var (id, caller, concurrentRequestLimit) = IdleCallers.Take();
+            // 取出caller
+            IdleRequestQuotas.TryDequeue(out var caller);
+            var response = await caller.PostAsync(request);
+            IdleRequestQuotas.Enqueue(caller);
 
-            //// 呼叫次數 + 1，如果此數小於呼叫數量限制執行if，如果此數等於呼叫數量限制執行elseif
-            //if (ConcurrentRequestCountTracker.AddOrUpdate(id, 0, (key, oldValue) => oldValue + 1) < concurrentRequestLimit)
-            //{
-            //    Console.WriteLine("Requested with caller: " + id);
-
-            //    // 呼叫器加回IdleCallers，使它可以再次被取用
-            //    IdleCallers.Add((id, caller, concurrentRequestLimit));
-            //    response = await caller.PostAsync(request);
-
-            //    // reqeust完成後呼叫次數 - 1
-            //    ConcurrentRequestCountTracker.AddOrUpdate(id, 0, (key, oldValue) => oldValue - 1);
-
-            //    Console.WriteLine("Got response from caller: " + id);
-            //}
-            //else if (ConcurrentRequestCountTracker[id] == concurrentRequestLimit)
-            //{
-            //    Console.WriteLine("[Max Limit] Requested with caller: " + id);
-
-            //    // request完成後再將呼叫器加回IdleCallers
-            //    response = await caller.PostAsync(request);
-            //    IdleCallers.Add((id, caller, concurrentRequestLimit));
-
-            //    // 呼叫次數 - 1
-            //    ConcurrentRequestCountTracker.AddOrUpdate(id, 0, (key, oldValue) => oldValue - 1);
-
-            //    Console.WriteLine("[Max Limit] Got response from caller: " + id);
-            //}
-            //else
-            //{
-            //    response = null;
-            //}
-
-            //return response;
-
-            IdleRequests.Add(request);
+            Semaphore.Release();
+            return response;
         }
     }
 }
