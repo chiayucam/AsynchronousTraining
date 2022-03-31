@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 
@@ -170,18 +171,31 @@ namespace AsynchronousTraining
 
         private static async Task TaskFive(string customReportbaseUri, Request request)
         {
-            CallProducer callProducer = new CallProducer();
+            var channel = Channel.CreateUnbounded<Request>();
+            var callProducer = new CallProducer(channel);
+            var callProducerConsumerController = new CallProducerConsumerController();
 
-            await Task.Run(() =>
+            for (int i=0; i<2; i++)
             {
-                for (int i = 0; i < 30; i++)
+                int responseTime = 1000 * (i+1);
+                int mockCallerRequestLimit = 10;
+                int requestLimit = i + 1;
+                callProducerConsumerController.AddCallConsumer(new CustomReportMockCaller(responseTime, mockCallerRequestLimit), channel, requestLimit);
+            }
+
+            // produce
+            await Task.Run(() => 
+            {
+                for (int i=0; i<10; i++)
                 {
                     callProducer.AddRequest(request);
                 }
             });
 
+            // consume
+            await callProducerConsumerController.StartConsumeAsync();
 
-            
+
         }
     }
 }

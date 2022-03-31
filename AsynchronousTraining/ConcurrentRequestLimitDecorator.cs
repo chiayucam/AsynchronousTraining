@@ -39,15 +39,5 @@ namespace AsynchronousTraining
                 throw new RequestLimitExceededException("Maximun concurrent request limit exceeded.");
             }
         }
-
-        public int Increment()
-        {
-            return Interlocked.Increment(ref ConcurrentRequestCount);
-        }
-
-        public int Decrement()
-        {
-            return Interlocked.Decrement(ref ConcurrentRequestCount);
-        }
     }
 }
