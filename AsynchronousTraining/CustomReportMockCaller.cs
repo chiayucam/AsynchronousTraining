@@ -24,7 +24,7 @@ namespace AsynchronousTraining
             ResponseTime = responseTime;
             ConcurrentRequestLimit = concurrentRequestLimit;
         }
-
+        
         /// <summary>
         /// Mock呼叫API
         /// </summary>
@@ -32,7 +32,6 @@ namespace AsynchronousTraining
         /// <returns>Response類別的response body</returns>
         public async Task<Response> PostAsync(Request request)
         {
-
             if (Interlocked.Increment(ref ConcurrentRequestCount) <= ConcurrentRequestLimit)
             {
                 await Task.Delay(ResponseTime);

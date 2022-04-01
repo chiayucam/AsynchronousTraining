@@ -22,5 +22,10 @@ namespace AsynchronousTraining
             //IdleRequests.Enqueue(request);
             ChannelWriter.WriteAsync(request);
         }
+
+        public void Complete()
+        {
+            ChannelWriter.Complete();
+        }
     }
 }

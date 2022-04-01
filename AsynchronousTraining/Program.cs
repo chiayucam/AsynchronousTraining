@@ -171,31 +171,39 @@ namespace AsynchronousTraining
 
         private static async Task TaskFive(string customReportbaseUri, Request request)
         {
-            var channel = Channel.CreateUnbounded<Request>();
-            var callProducer = new CallProducer(channel);
             var callProducerConsumerController = new CallProducerConsumerController();
 
+            // add consumers
             for (int i=0; i<2; i++)
             {
+                // testing parameters
                 int responseTime = 1000 * (i+1);
                 int mockCallerRequestLimit = 10;
                 int requestLimit = i + 1;
-                callProducerConsumerController.AddCallConsumer(new CustomReportMockCaller(responseTime, mockCallerRequestLimit), channel, requestLimit);
+
+                // using mock callers
+                //callProducerConsumerController.AddCallConsumer(new CustomReportMockCaller(responseTime, mockCallerRequestLimit), requestLimit);
+
+                // using real callers
+                callProducerConsumerController.AddCallConsumer(new CustomReportCaller(customReportbaseUri, Client), requestLimit);
             }
 
             // produce
+            int numOfRequests = 20;
             await Task.Run(() => 
             {
-                for (int i=0; i<10; i++)
+                for (int i=0; i<numOfRequests; i++)
                 {
-                    callProducer.AddRequest(request);
+                    callProducerConsumerController.AddRequest(request);
                 }
+                callProducerConsumerController.ProducerComplete();
             });
 
             // consume
             await callProducerConsumerController.StartConsumeAsync();
 
-
+            // get responses
+            var responses = callProducerConsumerController.Responses;
         }
     }
 }

@@ -12,26 +12,49 @@ namespace AsynchronousTraining
     {
         private readonly IHttpCallable Caller;
 
-        private readonly ChannelReader<Request> ChannelReader;
+        private readonly ChannelReader<Request> RequestReader;
 
-        public CallConsumer(IHttpCallable caller, ChannelReader<Request> channel, int requestLimit)
+        private readonly ChannelWriter<Response> ResponseWriter;
+
+        public CallConsumer(IHttpCallable caller, ChannelReader<Request> requestReader, ChannelWriter<Response> responseWriter, int requestLimit)
         {
             Caller = caller;
-            ChannelReader = channel;
+            RequestReader = requestReader;
+            ResponseWriter = responseWriter;
             RequestLimit = requestLimit;
         }
 
         public int RequestLimit { get; }
 
 
-        public async Task<Response> StartConsumeAsync()
+        public async Task StartConsumeAsync()
         {
             // TODO: how to return Task<Response>
-            while (true)
+            try
             {
-                var request = await ChannelReader.ReadAsync();
-                var response = await Caller.PostAsync(request);
-                Console.WriteLine($"[Response] {response.IsCompleted}");
+                while (true)
+                {
+                    var request = await RequestReader.ReadAsync();
+
+                    Console.WriteLine($"[Request] {request}");
+                    var response = await Caller.PostAsync(request);
+                    Console.WriteLine($"[Response] {response.IsCompleted}");
+
+                    await ResponseWriter.WriteAsync(response);
+                }
+            }
+            catch (ChannelClosedException)
+            {
+                Console.WriteLine("Channel job completed");
+
+                // multiple threads trying to close Response channel
+                try 
+                {
+                    ResponseWriter.Complete();
+                }
+                catch (ChannelClosedException)
+                {
+                }
             }
         }
     }
