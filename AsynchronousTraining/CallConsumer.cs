@@ -12,49 +12,41 @@ namespace AsynchronousTraining
     {
         private readonly IHttpCallable Caller;
 
-        private readonly ChannelReader<Request> RequestReader;
+        //private readonly ChannelReader<Request> RequestReader;
 
-        private readonly ChannelWriter<Response> ResponseWriter;
+        //private readonly ChannelWriter<Response> ResponseWriter;
 
-        public CallConsumer(IHttpCallable caller, ChannelReader<Request> requestReader, ChannelWriter<Response> responseWriter, int requestLimit)
+        public CallConsumer(IHttpCallable caller, int requestLimit)
         {
             Caller = caller;
-            RequestReader = requestReader;
-            ResponseWriter = responseWriter;
+            //RequestReader = requestReader;
+            //ResponseWriter = responseWriter;
             RequestLimit = requestLimit;
         }
+
+        public ChannelReader<(Request, TaskCompletionSource<Response>)> RequestReader { get; set; }
+
+        //public ChannelWriter<Response> ResponseWriter { get; set; }
 
         public int RequestLimit { get; }
 
 
         public async Task StartConsumeAsync()
         {
-            // TODO: how to return Task<Response>
             try
             {
                 while (true)
                 {
-                    var request = await RequestReader.ReadAsync();
-
-                    Console.WriteLine($"[Request] {request}");
+                    var (request, taskCompletionSource) = await RequestReader.ReadAsync();
                     var response = await Caller.PostAsync(request);
-                    Console.WriteLine($"[Response] {response.IsCompleted}");
+                    taskCompletionSource.SetResult(response);
 
-                    await ResponseWriter.WriteAsync(response);
+                    //await ResponseWriter.WriteAsync(response);
                 }
             }
             catch (ChannelClosedException)
             {
-                Console.WriteLine("Channel job completed");
-
-                // multiple threads trying to close Response channel
-                try 
-                {
-                    ResponseWriter.Complete();
-                }
-                catch (ChannelClosedException)
-                {
-                }
+                Console.WriteLine("Channel closed");
             }
         }
     }

@@ -10,22 +10,21 @@ namespace AsynchronousTraining
 {
     public class CallProducer
     {
-        private readonly ChannelWriter<Request> ChannelWriter;
+        private readonly ChannelWriter<(Request, TaskCompletionSource<Response>)> RequestWriter;
 
-        public CallProducer(ChannelWriter<Request> channel)
+        public CallProducer(ChannelWriter<(Request, TaskCompletionSource<Response>)> requestWriter)
         {
-            ChannelWriter = channel;
+            RequestWriter = requestWriter;
         }
 
-        public void AddRequest(Request request)
+        public void AddRequest(Request request, TaskCompletionSource<Response> taskCompletionSource)
         {
-            //IdleRequests.Enqueue(request);
-            ChannelWriter.WriteAsync(request);
+            RequestWriter.WriteAsync((request, taskCompletionSource));
         }
 
         public void Complete()
         {
-            ChannelWriter.Complete();
+            RequestWriter.Complete();
         }
     }
 }

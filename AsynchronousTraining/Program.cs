@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -50,7 +51,7 @@ namespace AsynchronousTraining
 
             //await TaskFour(customReportbaseUri, request);
 
-            await TaskFive(customReportbaseUri, request);
+            TaskFive(customReportbaseUri, request);
 
             Console.ReadLine();
         }
@@ -157,7 +158,7 @@ namespace AsynchronousTraining
             var tasks = new List<Task>();
             try
             {
-                for (int i=0; i<30; i++)
+                for (int i = 0; i < 30; i++)
                 {
                     tasks.Add(callController.PostAsync(request));
                 }
@@ -169,41 +170,44 @@ namespace AsynchronousTraining
             }
         }
 
-        private static async Task TaskFive(string customReportbaseUri, Request request)
+        private static void TaskFive(string customReportbaseUri, Request request)
         {
-            var callProducerConsumerController = new CallProducerConsumerController();
+            // testing parameters
+            int requestLimit = 2;
 
-            // add consumers
-            for (int i=0; i<2; i++)
+            // mock caller parameters
+            int responseTime = 100;
+            int mockCallerRequestLimit = 10;
+
+            // create callconsumers
+            var callconsumers = new CallConsumer[]
             {
-                // testing parameters
-                int responseTime = 1000 * (i+1);
-                int mockCallerRequestLimit = 10;
-                int requestLimit = i + 1;
+                //new CallConsumer(new CustomReportCaller(customReportbaseUri, Client), requestLimit),
+                //new CallConsumer(new CustomReportCaller(customReportbaseUri, Client), requestLimit)
+                new CallConsumer(new CustomReportMockCaller(responseTime, mockCallerRequestLimit), requestLimit),
+                new CallConsumer(new CustomReportMockCaller(responseTime, mockCallerRequestLimit), requestLimit)
+            };
 
-                // using mock callers
-                //callProducerConsumerController.AddCallConsumer(new CustomReportMockCaller(responseTime, mockCallerRequestLimit), requestLimit);
+            var callProducerConsumerController = new CallProducerConsumerController(callconsumers);
 
-                // using real callers
-                callProducerConsumerController.AddCallConsumer(new CustomReportCaller(customReportbaseUri, Client), requestLimit);
+            foreach (var index in Enumerable.Range(0, 100))
+            {
+                Task.Run(async () =>
+                {
+                    var requestTest = new Request()
+                    {
+                        Params = index.ToString()
+                    };
+                    var response = await callProducerConsumerController.PostAsync(requestTest);
+                    Console.WriteLine($"request={requestTest.Params},response={response.Result}");
+                });
             }
 
-            // produce
-            int numOfRequests = 20;
-            await Task.Run(() => 
-            {
-                for (int i=0; i<numOfRequests; i++)
-                {
-                    callProducerConsumerController.AddRequest(request);
-                }
-                callProducerConsumerController.ProducerComplete();
-            });
+            // close channel
+            //callProducerConsumerController.ProducerComplete();
 
             // consume
-            await callProducerConsumerController.StartConsumeAsync();
-
-            // get responses
-            var responses = callProducerConsumerController.Responses;
+            callProducerConsumerController.StartConsumers();
         }
     }
 }

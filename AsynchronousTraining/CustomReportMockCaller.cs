@@ -44,7 +44,10 @@ namespace AsynchronousTraining
                 throw new RequestLimitExceededException("Maximun concurrent request limit exceeded.");
             }
 
-            var response = new Response();
+            var response = new Response()
+            {
+                Result = request.Params
+            };
             return response;
         }
 

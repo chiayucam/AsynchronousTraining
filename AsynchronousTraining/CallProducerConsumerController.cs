@@ -10,7 +10,7 @@ namespace AsynchronousTraining
     /// <summary>
     /// 生產者/消費者模式 呼叫API控制器
     /// </summary>
-    public class CallProducerConsumerController
+    public class CallProducerConsumerController : IHttpCallable
     {
         /// <summary>
         /// 生產者 生產Request
@@ -18,73 +18,66 @@ namespace AsynchronousTraining
         private readonly CallProducer CallProducer;
 
         /// <summary>
-        /// 消費者 消費Request
+        /// 消費者陣列 消費Request
         /// </summary>
-        private readonly List<CallConsumer> CallConsumers = new List<CallConsumer>();
+        private readonly CallConsumer[] CallConsumers;
 
         /// <summary>
         /// Request 通道，提供給生產者存放，消費者取用
         /// </summary>
-        private readonly Channel<Request> RequestChannel = Channel.CreateUnbounded<Request>();
+        private readonly Channel<(Request, TaskCompletionSource<Response>)> RequestChannel = 
+            Channel.CreateUnbounded<(Request, TaskCompletionSource<Response>)>();
 
         /// <summary>
-        /// Response
+        /// 建構子
         /// </summary>
-        private readonly Channel<Response> ResponseChannel = Channel.CreateUnbounded<Response>();
-
-        public CallProducerConsumerController()
+        /// <param name="callConsumers">消費者陣列</param>
+        public CallProducerConsumerController(CallConsumer[] callConsumers)
         {
+            CallConsumers = callConsumers;
+            foreach (var callConsumer in CallConsumers)
+            {
+                callConsumer.RequestReader = RequestChannel.Reader;
+            }
+
             CallProducer = new CallProducer(RequestChannel.Writer);
         }
 
-        public List<Response> Responses = new List<Response>();
-
         /// <summary>
-        /// 加呼叫器
+        /// 關閉 RequestChannel
         /// </summary>
-        /// <param name="caller">呼叫器</param>
-        /// <param name="requestLimit">呼叫器的呼叫次數限制</param>
-        public void AddCallConsumer(IHttpCallable caller, int requestLimit)
-        {
-            CallConsumers.Add(new CallConsumer(caller, RequestChannel.Reader, ResponseChannel.Writer, requestLimit));
-        }
-
-        public void AddRequest(Request request)
-        {
-            CallProducer.AddRequest(request);
-        }
-
         public void ProducerComplete()
         {
             CallProducer.Complete();
         }
 
-        public async Task StartConsumeAsync()
+        /// <summary>
+        /// 啟動Consumers
+        /// </summary>
+        public void StartConsumers()
         {
-            var tasks = new List<Task>();
+            // spawn RequestLimit amount of threads for each callConsumer
             foreach (var callConsumer in CallConsumers)
             {
                 for (int i = 0; i < callConsumer.RequestLimit; i++)
                 {
-                    tasks.Add(callConsumer.StartConsumeAsync());
+                    Task.Run(() => callConsumer.StartConsumeAsync());
                 }
             }
+        }
 
-            await Task.Run(async () =>
-            {
-                try
-                {
-                    while (true)
-                    {
-                        Responses.Add(await ResponseChannel.Reader.ReadAsync());
-                    }
-                }
-                catch (ChannelClosedException)
-                {
-                }
-            });
+        /// <summary>
+        /// 傳入request 呼叫API
+        /// </summary>
+        /// <param name="request">request</param>
+        /// <returns>response</returns>
+        public async Task<Response> PostAsync(Request request)
+        {
+            var taskCompletionSource = new TaskCompletionSource<Response>();
 
-            await Task.WhenAll(tasks);
+            CallProducer.AddRequest(request, taskCompletionSource);
+
+            return await taskCompletionSource.Task;
         }
     }
 }
