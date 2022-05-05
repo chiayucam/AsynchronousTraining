@@ -21,10 +21,5 @@ namespace AsynchronousTraining
         {
             RequestWriter.WriteAsync((request, taskCompletionSource));
         }
-
-        public void Complete()
-        {
-            RequestWriter.Complete();
-        }
     }
 }

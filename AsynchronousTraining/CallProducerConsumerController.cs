@@ -38,32 +38,17 @@ namespace AsynchronousTraining
             foreach (var callConsumer in CallConsumers)
             {
                 callConsumer.RequestReader = RequestChannel.Reader;
-            }
 
-            CallProducer = new CallProducer(RequestChannel.Writer);
-        }
-
-        /// <summary>
-        /// 關閉 RequestChannel
-        /// </summary>
-        public void ProducerComplete()
-        {
-            CallProducer.Complete();
-        }
-
-        /// <summary>
-        /// 啟動Consumers
-        /// </summary>
-        public void StartConsumers()
-        {
-            // spawn RequestLimit amount of threads for each callConsumer
-            foreach (var callConsumer in CallConsumers)
-            {
+                // spawn RequestLimit amount of threads for each callConsumer
                 for (int i = 0; i < callConsumer.RequestLimit; i++)
                 {
                     Task.Run(() => callConsumer.StartConsumeAsync());
                 }
             }
+
+            CallProducer = new CallProducer(RequestChannel.Writer);
+
+            
         }
 
         /// <summary>
@@ -74,7 +59,6 @@ namespace AsynchronousTraining
         public async Task<Response> PostAsync(Request request)
         {
             var taskCompletionSource = new TaskCompletionSource<Response>();
-
             CallProducer.AddRequest(request, taskCompletionSource);
 
             return await taskCompletionSource.Task;

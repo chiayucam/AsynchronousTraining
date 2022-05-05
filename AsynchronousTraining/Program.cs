@@ -173,11 +173,11 @@ namespace AsynchronousTraining
         private static void TaskFive(string customReportbaseUri, Request request)
         {
             // testing parameters
-            int requestLimit = 2;
+            int requestLimit = 10;
 
             // mock caller parameters
-            int responseTime = 100;
-            int mockCallerRequestLimit = 10;
+            int responseTime = 10;
+            int mockCallerRequestLimit = 3;
 
             // create callconsumers
             var callconsumers = new CallConsumer[]
@@ -194,20 +194,14 @@ namespace AsynchronousTraining
             {
                 Task.Run(async () =>
                 {
-                    var requestTest = new Request()
+                    var request = new Request()
                     {
                         Params = index.ToString()
                     };
-                    var response = await callProducerConsumerController.PostAsync(requestTest);
-                    Console.WriteLine($"request={requestTest.Params},response={response.Result}");
+                    var response = await callProducerConsumerController.PostAsync(request);
+                    Console.WriteLine($"request={request.Params},response={response.Result}");
                 });
             }
-
-            // close channel
-            //callProducerConsumerController.ProducerComplete();
-
-            // consume
-            callProducerConsumerController.StartConsumers();
         }
     }
 }
